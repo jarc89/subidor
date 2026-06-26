@@ -12,6 +12,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 import time
 import pyautogui
+import subprocess
 
 def leer_descripcion(carpeta):
     ruta = os.path.join(carpeta, "descripcion.txt")
@@ -69,7 +70,6 @@ def crear_driver():
     return driver, perfil_temp
 
 def subir_archivo_dialogo(ruta_archivo):
-    import subprocess
     time.sleep(2)
     subprocess.run(['clip'], input=ruta_archivo.encode('utf-8'), check=True)
     time.sleep(0.5)
@@ -165,12 +165,21 @@ def subir_kofi(driver, carpeta, datos, log):
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
         try:
-            upload_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'Upload a file')]")))
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", upload_btn)
-            time.sleep(1)
-            driver.execute_script("arguments[0].click();", upload_btn)
+            driver.execute_script("""
+                var dropzone = document.querySelector('.multi-file-uploader-wrapper');
+                var input = document.createElement('input');
+                input.type = 'file';
+                input.style.position = 'fixed';
+                input.style.top = '0';
+                input.style.left = '0';
+                input.style.opacity = '0';
+                document.body.appendChild(input);
+                window._kofi_upload_input = input;
+                input.click();
+            """)
             time.sleep(2)
             subir_archivo_dialogo(pdf)
+            time.sleep(3)
         except Exception as e:
             log(f"Ko-fi AVISO PDF: {e}")
 
