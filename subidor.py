@@ -116,9 +116,9 @@ def subir_payhip(driver, carpeta, datos, log):
 
 def subir_kofi(driver, carpeta, datos, log):
     log("Ko-fi: Abriendo pagina...")
-    driver.get("https://ko-fi.com/shop/settings?src=sidemenu&productType=0")
+    driver.get("https://ko-fi.com/shop/settings?productType=0")
     wait = WebDriverWait(driver, 30)
-    time.sleep(4)
+    time.sleep(5)
 
     log("Ko-fi: Abriendo modal de producto...")
     btn_add = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Add product')]")))
