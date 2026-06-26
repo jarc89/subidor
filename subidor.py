@@ -148,12 +148,18 @@ def subir_kofi(driver, carpeta, datos, log):
             inputs[0].send_keys(portada)
         time.sleep(4)
 
-    log("Ko-fi: Subiendo PDF...")
+    log("Ko-fi: Subiendo PDF en Assets...")
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
-        inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
-        if len(inputs) > 1:
-            inputs[1].send_keys(pdf)
+        # Buscar el input de assets específicamente
+        try:
+            asset_input = driver.find_element(By.CSS_SELECTOR, "input.product-upload-input[type='file']")
+            asset_input.send_keys(pdf)
+        except:
+            inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+            # El último input es el de assets
+            if inputs:
+                inputs[-1].send_keys(pdf)
         time.sleep(5)
 
     log("Ko-fi: Escribiendo precio...")
