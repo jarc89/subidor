@@ -70,13 +70,12 @@ def crear_driver():
     return driver, perfil_temp
 
 def subir_archivo_dialogo(ruta_archivo):
-    import subprocess
     time.sleep(3)
     # Copiar ruta al portapapeles
     subprocess.run('clip', input=ruta_archivo.encode('utf-8'), shell=True)
     time.sleep(1)
-    # Escribir en la barra de direcciones del dialogo
-    pyautogui.hotkey('ctrl', 'l')
+    # Escribir ruta en campo nombre de archivo
+    pyautogui.hotkey('alt', 'd')
     time.sleep(0.5)
     pyautogui.hotkey('ctrl', 'a')
     time.sleep(0.3)
@@ -171,13 +170,13 @@ def subir_kofi(driver, carpeta, datos, log):
     if pdf:
         try:
             driver.execute_script("""
-                var dropzone = document.querySelector('.multi-file-uploader-wrapper');
                 var input = document.createElement('input');
                 input.type = 'file';
                 input.style.position = 'fixed';
                 input.style.top = '0';
                 input.style.left = '0';
-                input.style.opacity = '0';
+                input.style.opacity = '0.01';
+                input.style.zIndex = '99999';
                 document.body.appendChild(input);
                 window._kofi_upload_input = input;
                 input.click();
