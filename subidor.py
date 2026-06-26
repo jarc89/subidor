@@ -15,7 +15,6 @@ import time
 def leer_descripcion(carpeta):
     ruta = os.path.join(carpeta, "descripcion.txt")
     datos = {}
-    # Claves que marcan fin de DESCRIPCION si aparecen solas en una linea
     CLAVES_CONOCIDAS = {"TITULO", "PRECIO", "CATEGORIA", "TAGS",
                         "DESCRIPCION", "URL_GUMROAD", "URL_PAYHIP",
                         "URL_KOFI", "URL_ITCH"}
@@ -27,7 +26,6 @@ def leer_descripcion(carpeta):
         if "=" in linea:
             clave, _, valor = linea.partition("=")
             clave = clave.strip()
-            # Si es una clave conocida, cerramos DESCRIPCION y procesamos normal
             if clave in CLAVES_CONOCIDAS:
                 en_descripcion = False
                 if clave == "DESCRIPCION":
@@ -36,7 +34,6 @@ def leer_descripcion(carpeta):
                 else:
                     datos[clave] = valor.strip()
                 continue
-        # Si estamos acumulando descripcion, agregamos la linea
         if en_descripcion:
             datos["DESCRIPCION"] += "\n" + linea
     return datos
@@ -120,72 +117,152 @@ def subir_payhip(driver, carpeta, datos, log):
     log("Payhip: Listo. Pagina disponible en el navegador.")
 
 # ─────────────────────────────────────────────
-#  KO-FI
+#  KO-FI  (corregido: imagen vs asset separados)
 # ─────────────────────────────────────────────
 def subir_kofi(driver, carpeta, datos, log):
     log("Ko-fi: Abriendo pagina...")
-    driver.get("https://ko-fi.com/shop/settings?productType=0")
+    driver.get("https://ko-fi.com/shop/items/add")
     wait = WebDriverWait(driver, 30)
     time.sleep(5)
 
-    log("Ko-fi: Abriendo modal de producto...")
-    btn_add = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Add product')]")))
-    driver.execute_script("arguments[0].click();", btn_add)
-    time.sleep(3)
+    # --- Titulo ---
+    log("Ko-fi: Escribiendo titulo...")
+    titulo = wait.until(EC.presence_of_element_located(
+        (By.CSS_SELECTOR, "input[placeholder='e.g. Comic PDF']")))
+    titulo.clear()
+    titulo.send_keys(datos.get("TITULO", ""))
 
-    log("Ko-fi: Escribiendo nombre...")
-    nombre = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder='e.g. Comic PDF']")))
-    nombre.clear()
-    nombre.send_keys(datos.get("TITULO", ""))
-
-    log("Ko-fi: Siguiente paso...")
-    wait.until(EC.presence_of_element_located((By.ID, "shopModalNextStep")))
-    driver.execute_script("document.getElementById('shopModalNextStep').click();")
-    time.sleep(4)
-
-    log("Ko-fi: Esperando formulario completo...")
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "textarea[placeholder='Share your listing']")))
-    time.sleep(2)
-
+    # --- Descripcion ---
     log("Ko-fi: Escribiendo descripcion...")
-    desc = driver.find_element(By.CSS_SELECTOR, "textarea[placeholder='Share your listing']")
-    desc.clear()
-    desc.send_keys(datos.get("DESCRIPCION", ""))
+    try:
+        desc = wait.until(EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "textarea[placeholder='Share your listing']")))
+        desc.clear()
+        desc.send_keys(datos.get("DESCRIPCION", ""))
+    except Exception as e:
+        log(f"Ko-fi AVISO descripcion: {e}")
 
-    # --- Portada ---
+    # --- Product Summary (campo corto) ---
+    log("Ko-fi: Escribiendo product summary...")
+    try:
+        summary = driver.find_element(
+            By.CSS_SELECTOR, "input[placeholder=\"e.g. 'A digital wallpaper'\"]")
+        summary.clear()
+        summary.send_keys("Digital manual")
+    except:
+        try:
+            # placeholder alternativo segun version de Ko-fi
+            summary = driver.find_element(
+                By.CSS_SELECTOR, "input[placeholder*='digital wallpaper']")
+            summary.clear()
+            summary.send_keys("Digital manual")
+        except:
+            log("Ko-fi AVISO: no se encontro campo Product Summary, continuando...")
+
+    # --- Portada (zona de imagenes - primer Dropzone) ---
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
-        log("Ko-fi: Subiendo portada...")
+        log("Ko-fi: Subiendo portada en zona de imagenes...")
         try:
-            inputs = driver.find_elements(By.CSS_SELECTOR, "input.dz-hidden-input")
-            if inputs:
-                inputs[0].send_keys(portada)
+            # Buscar todos los inputs Dropzone
+            inputs_dz = driver.find_elements(By.CSS_SELECTOR, "input.dz-hidden-input")
+            log(f"Ko-fi: Dropzone inputs encontrados: {len(inputs_dz)}")
+
+            # El input de imagenes esta ANTES del de assets en el DOM
+            # Verificar cual corresponde a imagenes buscando su contenedor
+            input_imagen = None
+            for inp in inputs_dz:
+                # Subir por el DOM para ver si el contenedor menciona imagenes
+                try:
+                    contenedor = driver.execute_script(
+                        "return arguments[0].closest('.image-upload-area, .dz-clickable, [class*=\"image\"], [class*=\"photo\"]');",
+                        inp)
+                    if contenedor:
+                        input_imagen = inp
+                        break
+                except:
+                    pass
+
+            # Si no encontramos por contenedor, usar el primero
+            if not input_imagen and inputs_dz:
+                input_imagen = inputs_dz[0]
+
+            if input_imagen:
+                input_imagen.send_keys(portada)
+                log("Ko-fi: Portada enviada.")
                 time.sleep(4)
         except Exception as e:
             log(f"Ko-fi AVISO portada: {e}")
 
-    # --- PDF Asset ---
+    # --- PDF Asset (zona de Assets - segundo Dropzone o boton Upload a file) ---
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
-        log("Ko-fi: Subiendo PDF en Assets...")
+        log("Ko-fi: Subiendo PDF en zona de Assets...")
         try:
-            inputs = driver.find_elements(By.CSS_SELECTOR, "input.dz-hidden-input")
-            if len(inputs) > 1:
-                inputs[1].send_keys(pdf)
-                log("Ko-fi: PDF enviado al input de Assets.")
-            elif len(inputs) == 1:
-                log("Ko-fi: Solo 1 input dz, intentando via input[type=file]...")
-                todos = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
-                for inp in todos:
-                    clase = inp.get_attribute("class") or ""
-                    if "dz" in clase:
-                        inp.send_keys(pdf)
-                        log("Ko-fi: PDF enviado via input[type=file] dz.")
-                        break
+            # Estrategia 1: buscar el input dentro del contenedor de Assets especificamente
+            input_asset = driver.execute_script("""
+                var secciones = document.querySelectorAll('section, div, fieldset');
+                for (var i = 0; i < secciones.length; i++) {
+                    var texto = secciones[i].innerText || '';
+                    if (texto.includes('Assets') || texto.includes('Upload a file')) {
+                        var inp = secciones[i].querySelector('input[type=file]');
+                        if (inp) return inp;
+                    }
+                }
+                return null;
+            """)
 
+            if input_asset:
+                log("Ko-fi: Input de Assets encontrado por contenedor.")
+                input_asset.send_keys(pdf)
+            else:
+                # Estrategia 2: scroll hasta "Upload a file" y usar el input mas cercano
+                log("Ko-fi: Buscando boton Upload a file...")
+                upload_spans = driver.find_elements(
+                    By.XPATH, "//span[contains(text(),'Upload a file')] | //button[contains(text(),'Upload a file')]")
+
+                if upload_spans:
+                    driver.execute_script(
+                        "arguments[0].scrollIntoView({block:'center'});", upload_spans[0])
+                    time.sleep(1)
+                    # Buscar el input file mas cercano al span
+                    input_asset = driver.execute_script("""
+                        var span = arguments[0];
+                        var padre = span.closest('.dropzone, [class*="asset"], [class*="upload"]');
+                        if (padre) {
+                            return padre.querySelector('input[type=file]');
+                        }
+                        // Buscar hacia arriba hasta 5 niveles
+                        var el = span;
+                        for (var i = 0; i < 5; i++) {
+                            el = el.parentElement;
+                            if (!el) break;
+                            var inp = el.querySelector('input[type=file]');
+                            if (inp) return inp;
+                        }
+                        return null;
+                    """, upload_spans[0])
+
+                    if input_asset:
+                        input_asset.send_keys(pdf)
+                        log("Ko-fi: PDF enviado via Upload a file.")
+                    else:
+                        # Estrategia 3: ultimo recurso - segundo dz-hidden-input
+                        inputs_dz = driver.find_elements(By.CSS_SELECTOR, "input.dz-hidden-input")
+                        log(f"Ko-fi: Usando fallback - {len(inputs_dz)} inputs dz encontrados.")
+                        if len(inputs_dz) > 1:
+                            inputs_dz[1].send_keys(pdf)
+                            log("Ko-fi: PDF enviado al segundo dz-hidden-input.")
+                        elif inputs_dz:
+                            inputs_dz[0].send_keys(pdf)
+                            log("Ko-fi: PDF enviado al unico dz-hidden-input (fallback).")
+                else:
+                    log("Ko-fi ERROR: No se encontro zona de Assets.")
+
+            # Esperar confirmacion de carga (hasta 30 segundos)
             log("Ko-fi: Esperando que el PDF termine de cargar...")
             cargado = False
-            for _ in range(25):
+            for _ in range(30):
                 time.sleep(1)
                 try:
                     exitos = driver.find_elements(By.CSS_SELECTOR, ".dz-success, .dz-complete")
@@ -200,7 +277,8 @@ def subir_kofi(driver, carpeta, datos, log):
                         break
                     btns = driver.find_elements(By.ID, "saveAndPublishButton")
                     if btns:
-                        disabled = driver.execute_script("return arguments[0].disabled;", btns[0])
+                        disabled = driver.execute_script(
+                            "return arguments[0].disabled;", btns[0])
                         if not disabled:
                             log("Ko-fi: Boton Save habilitado, PDF listo.")
                             cargado = True
@@ -210,6 +288,7 @@ def subir_kofi(driver, carpeta, datos, log):
             if not cargado:
                 log("Ko-fi: AVISO - No se confirmo carga del PDF, continuando de todas formas...")
             time.sleep(2)
+
         except Exception as e:
             log(f"Ko-fi ERROR PDF: {e}")
     else:
@@ -218,7 +297,8 @@ def subir_kofi(driver, carpeta, datos, log):
     # --- Precio ---
     log("Ko-fi: Escribiendo precio...")
     try:
-        precio_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='number']")))
+        precio_input = wait.until(EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "input[type='number']")))
         precio_input.clear()
         precio_input.send_keys(datos.get("PRECIO", "10"))
     except Exception as e:
@@ -241,7 +321,8 @@ def subir_kofi(driver, carpeta, datos, log):
     btn_save = None
 
     try:
-        btn_save = wait.until(EC.presence_of_element_located((By.ID, "saveAndPublishButton")))
+        btn_save = wait.until(EC.presence_of_element_located(
+            (By.ID, "saveAndPublishButton")))
         log("Ko-fi: Boton encontrado por ID.")
     except:
         pass
@@ -297,7 +378,8 @@ def subir_itch(driver, carpeta, datos, log):
     time.sleep(4)
 
     log("Itch.io: Escribiendo titulo...")
-    titulo = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='game[title]']")))
+    titulo = wait.until(EC.presence_of_element_located(
+        (By.CSS_SELECTOR, "input[name='game[title]']")))
     titulo.clear()
     titulo.send_keys(datos.get("TITULO", ""))
     time.sleep(2)
@@ -351,7 +433,8 @@ def subir_gumroad(driver, carpeta, datos, log):
     time.sleep(4)
 
     log("Gumroad: Escribiendo nombre...")
-    nombre = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='name']")))
+    nombre = wait.until(EC.presence_of_element_located(
+        (By.CSS_SELECTOR, "input[name='name']")))
     nombre.clear()
     nombre.send_keys(datos.get("TITULO", ""))
 
@@ -373,7 +456,8 @@ def subir_gumroad(driver, carpeta, datos, log):
     time.sleep(5)
 
     log("Gumroad: Escribiendo descripcion...")
-    desc = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[contenteditable='true']")))
+    desc = wait.until(EC.presence_of_element_located(
+        (By.CSS_SELECTOR, "div[contenteditable='true']")))
     desc.click()
     desc.send_keys(datos.get("DESCRIPCION", ""))
 
