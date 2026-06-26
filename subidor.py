@@ -166,8 +166,8 @@ def subir_kofi(driver, carpeta, datos, log):
         time.sleep(4)
 
     log("Ko-fi: Subiendo PDF en Assets...")
-pdf = buscar_archivo(carpeta, [".pdf"])
-if pdf:
+    pdf = buscar_archivo(carpeta, [".pdf"])
+    if pdf:
     try:
         # Crear input file oculto y enviarlo directamente
         driver.execute_script("""
@@ -186,7 +186,7 @@ if pdf:
         file_input = driver.find_element(By.CSS_SELECTOR, "input[accept='.pdf']")
         file_input.send_keys(pdf)
         time.sleep(5)
-    except Exception as e:
+        except Exception as e:
         log(f"Ko-fi AVISO PDF: {e}")
 
     log("Ko-fi: Escribiendo precio...")
