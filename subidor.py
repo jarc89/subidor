@@ -116,13 +116,13 @@ def subir_payhip(driver, carpeta, datos, log):
 
 def subir_kofi(driver, carpeta, datos, log):
     log("Ko-fi: Abriendo pagina...")
-    driver.get("https://ko-fi.com/account/shop")
+    driver.get("https://ko-fi.com/shop/settings?src=sidemenu&productType=0")
     wait = WebDriverWait(driver, 30)
     time.sleep(4)
 
     log("Ko-fi: Abriendo modal de producto...")
     btn_add = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Add product')]")))
-    btn_add.click()
+    driver.execute_script("arguments[0].click();", btn_add)
     time.sleep(3)
 
     log("Ko-fi: Escribiendo nombre...")
@@ -131,7 +131,7 @@ def subir_kofi(driver, carpeta, datos, log):
     nombre.send_keys(datos.get("TITULO", ""))
 
     log("Ko-fi: Siguiente paso...")
-    btn_next = driver.find_element(By.XPATH, "//button[contains(text(),'Next step')]")
+    btn_next = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Next step')]")))
     btn_next.click()
     time.sleep(4)
 
@@ -168,7 +168,7 @@ def subir_kofi(driver, carpeta, datos, log):
             cb.click()
 
     log("Ko-fi: Guardando...")
-    btn_save = driver.find_element(By.XPATH, "//button[contains(text(),'Save and publish')]")
+    btn_save = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Save and publish')]")))
     btn_save.click()
     time.sleep(6)
 
