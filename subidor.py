@@ -11,6 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 import time
+import pyautogui
 
 def leer_descripcion(carpeta):
     ruta = os.path.join(carpeta, "descripcion.txt")
@@ -66,6 +67,15 @@ def crear_driver():
     opciones.add_argument(perfil_temp)
     driver = webdriver.Firefox(options=opciones)
     return driver, perfil_temp
+
+def subir_archivo_dialogo(ruta_archivo):
+    time.sleep(2)
+    pyautogui.hotkey('ctrl', 'a')
+    time.sleep(0.5)
+    pyautogui.typewrite(ruta_archivo, interval=0.05)
+    time.sleep(0.5)
+    pyautogui.press('enter')
+    time.sleep(3)
 
 def subir_payhip(driver, carpeta, datos, log):
     log("Payhip: Abriendo pagina...")
@@ -131,8 +141,8 @@ def subir_kofi(driver, carpeta, datos, log):
     nombre.send_keys(datos.get("TITULO", ""))
 
     log("Ko-fi: Siguiente paso...")
-    btn_next = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit'][value='Next step']")))
-    driver.execute_script("arguments[0].click();", btn_next)
+    wait.until(EC.presence_of_element_located((By.ID, "shopModalNextStep")))
+    driver.execute_script("document.getElementById('shopModalNextStep').click();")
     time.sleep(4)
 
     log("Ko-fi: Escribiendo descripcion...")
@@ -151,19 +161,18 @@ def subir_kofi(driver, carpeta, datos, log):
     log("Ko-fi: Subiendo PDF en Assets...")
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
-        # Buscar el input de assets específicamente
         try:
-            asset_input = driver.find_element(By.CSS_SELECTOR, "input.product-upload-input[type='file']")
-            asset_input.send_keys(pdf)
-        except:
-            inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
-            # El último input es el de assets
-            if inputs:
-                inputs[-1].send_keys(pdf)
-        time.sleep(5)
+            upload_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'Upload a file')]")))
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", upload_btn)
+            time.sleep(1)
+            driver.execute_script("arguments[0].click();", upload_btn)
+            time.sleep(2)
+            subir_archivo_dialogo(pdf)
+        except Exception as e:
+            log(f"Ko-fi AVISO PDF: {e}")
 
     log("Ko-fi: Escribiendo precio...")
-    precio_input = driver.find_element(By.CSS_SELECTOR, "input[type='number']")
+    precio_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='number']")))
     precio_input.clear()
     precio_input.send_keys(datos.get("PRECIO", "10"))
 
@@ -180,7 +189,9 @@ def subir_kofi(driver, carpeta, datos, log):
 
     log("Ko-fi: Guardando...")
     btn_save = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Save and publish')]")))
-    btn_save.click()
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn_save)
+    time.sleep(1)
+    driver.execute_script("arguments[0].click();", btn_save)
     time.sleep(6)
 
     url_actual = driver.current_url
