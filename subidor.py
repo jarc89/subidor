@@ -131,8 +131,8 @@ def subir_kofi(driver, carpeta, datos, log):
     nombre.send_keys(datos.get("TITULO", ""))
 
     log("Ko-fi: Siguiente paso...")
-    btn_next = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Next step')]")))
-    btn_next.click()
+    btn_next = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit'][value='Next step']")))
+    driver.execute_script("arguments[0].click();", btn_next)
     time.sleep(4)
 
     log("Ko-fi: Escribiendo descripcion...")
