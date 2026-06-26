@@ -69,21 +69,6 @@ def crear_driver():
     driver = webdriver.Firefox(options=opciones)
     return driver, perfil_temp
 
-def subir_archivo_dialogo(ruta_archivo):
-    time.sleep(3)
-    # Copiar ruta al portapapeles
-    subprocess.run('clip', input=ruta_archivo.encode('utf-8'), shell=True)
-    time.sleep(1)
-    # Escribir ruta en campo nombre de archivo
-    pyautogui.hotkey('alt', 'd')
-    time.sleep(0.5)
-    pyautogui.hotkey('ctrl', 'a')
-    time.sleep(0.3)
-    pyautogui.hotkey('ctrl', 'v')
-    time.sleep(0.5)
-    pyautogui.press('enter')
-    time.sleep(3)
-
 def subir_payhip(driver, carpeta, datos, log):
     log("Payhip: Abriendo pagina...")
     driver.get("https://payhip.com/product/add/digital")
@@ -168,26 +153,25 @@ def subir_kofi(driver, carpeta, datos, log):
     log("Ko-fi: Subiendo PDF en Assets...")
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
-    try:
-        # Crear input file oculto y enviarlo directamente
-        driver.execute_script("""
-            var input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.pdf';
-            input.style.position = 'fixed';
-            input.style.top = '0';
-            input.style.left = '0';
-            input.style.opacity = '0.01';
-            input.style.zIndex = '99999';
-            document.body.appendChild(input);
-            window._kofi_file_input = input;
-        """)
-        time.sleep(1)
-        file_input = driver.find_element(By.CSS_SELECTOR, "input[accept='.pdf']")
-        file_input.send_keys(pdf)
-        time.sleep(5)
+        try:
+            driver.execute_script("""
+                var input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.pdf';
+                input.style.position = 'fixed';
+                input.style.top = '0';
+                input.style.left = '0';
+                input.style.opacity = '0.01';
+                input.style.zIndex = '99999';
+                document.body.appendChild(input);
+                window._kofi_file_input = input;
+            """)
+            time.sleep(1)
+            file_input = driver.find_element(By.CSS_SELECTOR, "input[accept='.pdf']")
+            file_input.send_keys(pdf)
+            time.sleep(5)
         except Exception as e:
-        log(f"Ko-fi AVISO PDF: {e}")
+            log(f"Ko-fi AVISO PDF: {e}")
 
     log("Ko-fi: Escribiendo precio...")
     precio_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='number']")))
