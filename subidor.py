@@ -70,8 +70,13 @@ def crear_driver():
     return driver, perfil_temp
 
 def subir_archivo_dialogo(ruta_archivo):
-    time.sleep(2)
-    subprocess.run(['clip'], input=ruta_archivo.encode('utf-8'), check=True)
+    import subprocess
+    time.sleep(3)
+    # Copiar ruta al portapapeles
+    subprocess.run('clip', input=ruta_archivo.encode('utf-8'), shell=True)
+    time.sleep(1)
+    # Escribir en la barra de direcciones del dialogo
+    pyautogui.hotkey('ctrl', 'l')
     time.sleep(0.5)
     pyautogui.hotkey('ctrl', 'a')
     time.sleep(0.3)
