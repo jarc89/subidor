@@ -131,8 +131,8 @@ def subir_kofi(driver, carpeta, datos, log):
     nombre.send_keys(datos.get("TITULO", ""))
 
     log("Ko-fi: Siguiente paso...")
-    btn_next = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit'][value='Next step']")))
-    driver.execute_script("arguments[0].click();", btn_next)
+    wait.until(EC.presence_of_element_located((By.ID, "shopModalNextStep")))
+    driver.execute_script("document.getElementById('shopModalNextStep').click();")
     time.sleep(4)
 
     log("Ko-fi: Escribiendo descripcion...")
@@ -162,10 +162,15 @@ def subir_kofi(driver, carpeta, datos, log):
     precio_input.send_keys(datos.get("PRECIO", "10"))
 
     log("Ko-fi: Aceptando terminos...")
-    checkboxes = driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']")
-    for cb in checkboxes:
-        if not cb.is_selected():
-            cb.click()
+    driver.execute_script("""
+        var checkboxes = document.querySelectorAll('input[type=checkbox]');
+        checkboxes.forEach(function(cb) {
+            if (cb.id !== 'darkThemeToggle' && !cb.checked) {
+                cb.click();
+            }
+        });
+    """)
+    time.sleep(1)
 
     log("Ko-fi: Guardando...")
     btn_save = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Save and publish')]")))
