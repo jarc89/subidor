@@ -166,26 +166,28 @@ def subir_kofi(driver, carpeta, datos, log):
         time.sleep(4)
 
     log("Ko-fi: Subiendo PDF en Assets...")
-    pdf = buscar_archivo(carpeta, [".pdf"])
-    if pdf:
-        try:
-            driver.execute_script("""
-                var input = document.createElement('input');
-                input.type = 'file';
-                input.style.position = 'fixed';
-                input.style.top = '0';
-                input.style.left = '0';
-                input.style.opacity = '0.01';
-                input.style.zIndex = '99999';
-                document.body.appendChild(input);
-                window._kofi_upload_input = input;
-                input.click();
-            """)
-            time.sleep(2)
-            subir_archivo_dialogo(pdf)
-            time.sleep(3)
-        except Exception as e:
-            log(f"Ko-fi AVISO PDF: {e}")
+pdf = buscar_archivo(carpeta, [".pdf"])
+if pdf:
+    try:
+        # Crear input file oculto y enviarlo directamente
+        driver.execute_script("""
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.pdf';
+            input.style.position = 'fixed';
+            input.style.top = '0';
+            input.style.left = '0';
+            input.style.opacity = '0.01';
+            input.style.zIndex = '99999';
+            document.body.appendChild(input);
+            window._kofi_file_input = input;
+        """)
+        time.sleep(1)
+        file_input = driver.find_element(By.CSS_SELECTOR, "input[accept='.pdf']")
+        file_input.send_keys(pdf)
+        time.sleep(5)
+    except Exception as e:
+        log(f"Ko-fi AVISO PDF: {e}")
 
     log("Ko-fi: Escribiendo precio...")
     precio_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='number']")))
