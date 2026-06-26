@@ -11,8 +11,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 import time
-import pyautogui
 import subprocess
+import pyautogui
 
 def leer_descripcion(carpeta):
     ruta = os.path.join(carpeta, "descripcion.txt")
@@ -68,6 +68,22 @@ def crear_driver():
     opciones.add_argument(perfil_temp)
     driver = webdriver.Firefox(options=opciones)
     return driver, perfil_temp
+
+def subir_con_pywinauto(ruta_archivo):
+    from pywinauto import Desktop
+    try:
+        dialogo = Desktop(backend="uia").window(title_re=".*Abrir.*|.*Open.*|.*Carga.*")
+        dialogo.wait("visible", timeout=10)
+        campo = dialogo.child_window(control_type="Edit")
+        campo.set_text(ruta_archivo)
+        time.sleep(0.5)
+        boton = dialogo.child_window(title_re=".*Abrir.*|.*Open.*")
+        boton.click()
+        time.sleep(3)
+        return True
+    except Exception as e:
+        print(f"pywinauto error: {e}")
+        return False
 
 def subir_payhip(driver, carpeta, datos, log):
     log("Payhip: Abriendo pagina...")
@@ -154,22 +170,12 @@ def subir_kofi(driver, carpeta, datos, log):
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
         try:
-            driver.execute_script("""
-                var input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.pdf';
-                input.style.position = 'fixed';
-                input.style.top = '0';
-                input.style.left = '0';
-                input.style.opacity = '0.01';
-                input.style.zIndex = '99999';
-                document.body.appendChild(input);
-                window._kofi_file_input = input;
-            """)
+            upload_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'Upload a file')]")))
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", upload_btn)
             time.sleep(1)
-            file_input = driver.find_element(By.CSS_SELECTOR, "input[accept='.pdf']")
-            file_input.send_keys(pdf)
-            time.sleep(5)
+            driver.execute_script("arguments[0].click();", upload_btn)
+            time.sleep(2)
+            subir_con_pywinauto(pdf)
         except Exception as e:
             log(f"Ko-fi AVISO PDF: {e}")
 
