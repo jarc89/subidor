@@ -11,7 +11,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 import time
-import subprocess
 
 def leer_descripcion(carpeta):
     ruta = os.path.join(carpeta, "descripcion.txt")
@@ -67,56 +66,6 @@ def crear_driver():
     opciones.add_argument(perfil_temp)
     driver = webdriver.Firefox(options=opciones)
     return driver, perfil_temp
-
-def subir_pdf_kofi(driver, pdf, log):
-    try:
-        # Contar inputs antes del clic
-        antes = driver.execute_script("return document.querySelectorAll('input[type=file]').length")
-        log(f"Ko-fi: Inputs antes del clic: {antes}")
-
-        # Hacer clic en Upload a file
-        upload_btn = driver.find_element(By.XPATH, "//span[contains(text(),'Upload a file')]")
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", upload_btn)
-        time.sleep(1)
-        driver.execute_script("arguments[0].click();", upload_btn)
-
-        # Buscar input dinamico por 3 segundos
-        for i in range(30):
-            time.sleep(0.1)
-            inputs = driver.execute_script("return document.querySelectorAll('input[type=file]').length")
-            if inputs > antes:
-                log(f"Ko-fi: Input dinamico encontrado en {i*0.1:.1f}s")
-                file_input = driver.find_element(By.CSS_SELECTOR, "input[type='file']")
-                driver.execute_script("arguments[0].style.display='block';", file_input)
-                file_input.send_keys(pdf)
-                time.sleep(5)
-                return True
-
-        log("Ko-fi: No se encontro input dinamico, intentando pywinauto...")
-        from pywinauto import Desktop
-        for _ in range(100):
-            ventanas = Desktop(backend="uia").windows()
-            for w in ventanas:
-                titulo = w.window_text()
-                if any(x in titulo for x in ["Abrir", "Open", "Seleccionar", "Select", "Upload", "File"]):
-                    log(f"Ko-fi: Dialogo encontrado: {titulo}")
-                    try:
-                        campo = w.child_window(control_type="Edit")
-                        campo.set_text(pdf)
-                        time.sleep(0.5)
-                        w.child_window(title_re=".*Abrir.*|.*Open.*").click()
-                        time.sleep(3)
-                        return True
-                    except:
-                        pass
-            time.sleep(0.1)
-
-        log("Ko-fi AVISO: No se pudo subir el PDF automaticamente.")
-        return False
-
-    except Exception as e:
-        log(f"Ko-fi ERROR PDF: {e}")
-        return False
 
 def subir_payhip(driver, carpeta, datos, log):
     log("Payhip: Abriendo pagina...")
@@ -191,18 +140,23 @@ def subir_kofi(driver, carpeta, datos, log):
     desc.clear()
     desc.send_keys(datos.get("DESCRIPCION", ""))
 
+    log("Ko-fi: Subiendo portada...")
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
-        log("Ko-fi: Subiendo portada...")
-        inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
-        if inputs:
-            inputs[0].send_keys(portada)
+        inputs = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "input.dz-hidden-input")))
+        inputs[0].send_keys(portada)
         time.sleep(4)
 
     log("Ko-fi: Subiendo PDF en Assets...")
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
-        subir_pdf_kofi(driver, pdf, log)
+        inputs = driver.find_elements(By.CSS_SELECTOR, "input.dz-hidden-input")
+        if len(inputs) > 1:
+            inputs[1].send_keys(pdf)
+            log("Ko-fi: PDF enviado al input de Assets.")
+        time.sleep(5)
+    else:
+        log("Ko-fi ERROR: No se encontro PDF.")
 
     log("Ko-fi: Escribiendo precio...")
     precio_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='number']")))
