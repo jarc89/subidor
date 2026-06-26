@@ -200,7 +200,7 @@ def subir_kofi(driver, carpeta, datos, log):
     time.sleep(1)
 
     log("Ko-fi: Guardando...")
-    btn_save = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Save and publish')]")))
+    btn_save = wait.until(EC.element_to_be_clickable((By.ID, "saveAndPublishButton")))
     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn_save)
     time.sleep(1)
     driver.execute_script("arguments[0].click();", btn_save)
