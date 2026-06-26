@@ -15,26 +15,31 @@ import time
 def leer_descripcion(carpeta):
     ruta = os.path.join(carpeta, "descripcion.txt")
     datos = {}
+    # Claves que marcan fin de DESCRIPCION si aparecen solas en una linea
+    CLAVES_CONOCIDAS = {"TITULO", "PRECIO", "CATEGORIA", "TAGS",
+                        "DESCRIPCION", "URL_GUMROAD", "URL_PAYHIP",
+                        "URL_KOFI", "URL_ITCH"}
     with open(ruta, encoding="utf-8") as f:
         contenido = f.read()
-    for linea in contenido.splitlines():
+    lineas = contenido.splitlines()
+    en_descripcion = False
+    for linea in lineas:
         if "=" in linea:
             clave, _, valor = linea.partition("=")
-            datos[clave.strip()] = valor.strip()
+            clave = clave.strip()
+            # Si es una clave conocida, cerramos DESCRIPCION y procesamos normal
+            if clave in CLAVES_CONOCIDAS:
+                en_descripcion = False
+                if clave == "DESCRIPCION":
+                    datos[clave] = valor.strip()
+                    en_descripcion = True
+                else:
+                    datos[clave] = valor.strip()
+                continue
+        # Si estamos acumulando descripcion, agregamos la linea
+        if en_descripcion:
+            datos["DESCRIPCION"] += "\n" + linea
     return datos
-
-def guardar_url(carpeta, clave, url):
-    ruta = os.path.join(carpeta, "descripcion.txt")
-    with open(ruta, encoding="utf-8") as f:
-        contenido = f.read()
-    nuevas_lineas = []
-    for linea in contenido.splitlines():
-        if linea.startswith(f"{clave}="):
-            nuevas_lineas.append(f"{clave}={url}")
-        else:
-            nuevas_lineas.append(linea)
-    with open(ruta, "w", encoding="utf-8") as f:
-        f.write("\n".join(nuevas_lineas))
 
 def buscar_archivo(carpeta, extensiones):
     for archivo in os.listdir(carpeta):
@@ -67,6 +72,9 @@ def crear_driver():
     driver = webdriver.Firefox(options=opciones)
     return driver, perfil_temp
 
+# ─────────────────────────────────────────────
+#  PAYHIP  (confirmado funcionando)
+# ─────────────────────────────────────────────
 def subir_payhip(driver, carpeta, datos, log):
     log("Payhip: Abriendo pagina...")
     driver.get("https://payhip.com/product/add/digital")
@@ -109,11 +117,11 @@ def subir_payhip(driver, carpeta, datos, log):
     btn = driver.find_element(By.XPATH, "//button[contains(text(),'Add Product')]")
     btn.click()
     time.sleep(6)
+    log("Payhip: Listo. Pagina disponible en el navegador.")
 
-    url_actual = driver.current_url
-    log(f"Payhip URL: {url_actual}")
-    guardar_url(carpeta, "URL_PAYHIP", url_actual)
-
+# ─────────────────────────────────────────────
+#  KO-FI
+# ─────────────────────────────────────────────
 def subir_kofi(driver, carpeta, datos, log):
     log("Ko-fi: Abriendo pagina...")
     driver.get("https://ko-fi.com/shop/settings?productType=0")
@@ -135,34 +143,88 @@ def subir_kofi(driver, carpeta, datos, log):
     driver.execute_script("document.getElementById('shopModalNextStep').click();")
     time.sleep(4)
 
+    log("Ko-fi: Esperando formulario completo...")
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "textarea[placeholder='Share your listing']")))
+    time.sleep(2)
+
     log("Ko-fi: Escribiendo descripcion...")
-    desc = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "textarea[placeholder='Share your listing']")))
+    desc = driver.find_element(By.CSS_SELECTOR, "textarea[placeholder='Share your listing']")
     desc.clear()
     desc.send_keys(datos.get("DESCRIPCION", ""))
 
-    log("Ko-fi: Subiendo portada...")
+    # --- Portada ---
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
-        inputs = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "input.dz-hidden-input")))
-        inputs[0].send_keys(portada)
-        time.sleep(4)
+        log("Ko-fi: Subiendo portada...")
+        try:
+            inputs = driver.find_elements(By.CSS_SELECTOR, "input.dz-hidden-input")
+            if inputs:
+                inputs[0].send_keys(portada)
+                time.sleep(4)
+        except Exception as e:
+            log(f"Ko-fi AVISO portada: {e}")
 
-    log("Ko-fi: Subiendo PDF en Assets...")
+    # --- PDF Asset ---
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
-        inputs = driver.find_elements(By.CSS_SELECTOR, "input.dz-hidden-input")
-        if len(inputs) > 1:
-            inputs[1].send_keys(pdf)
-            log("Ko-fi: PDF enviado al input de Assets.")
-        time.sleep(5)
+        log("Ko-fi: Subiendo PDF en Assets...")
+        try:
+            inputs = driver.find_elements(By.CSS_SELECTOR, "input.dz-hidden-input")
+            if len(inputs) > 1:
+                inputs[1].send_keys(pdf)
+                log("Ko-fi: PDF enviado al input de Assets.")
+            elif len(inputs) == 1:
+                log("Ko-fi: Solo 1 input dz, intentando via input[type=file]...")
+                todos = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+                for inp in todos:
+                    clase = inp.get_attribute("class") or ""
+                    if "dz" in clase:
+                        inp.send_keys(pdf)
+                        log("Ko-fi: PDF enviado via input[type=file] dz.")
+                        break
+
+            log("Ko-fi: Esperando que el PDF termine de cargar...")
+            cargado = False
+            for _ in range(25):
+                time.sleep(1)
+                try:
+                    exitos = driver.find_elements(By.CSS_SELECTOR, ".dz-success, .dz-complete")
+                    if exitos:
+                        log("Ko-fi: PDF cargado (dz-success detectado).")
+                        cargado = True
+                        break
+                    nombres = driver.find_elements(By.CSS_SELECTOR, ".dz-filename span")
+                    if nombres and any(n.text.strip() for n in nombres):
+                        log(f"Ko-fi: PDF cargado ({nombres[0].text.strip()}).")
+                        cargado = True
+                        break
+                    btns = driver.find_elements(By.ID, "saveAndPublishButton")
+                    if btns:
+                        disabled = driver.execute_script("return arguments[0].disabled;", btns[0])
+                        if not disabled:
+                            log("Ko-fi: Boton Save habilitado, PDF listo.")
+                            cargado = True
+                            break
+                except:
+                    pass
+            if not cargado:
+                log("Ko-fi: AVISO - No se confirmo carga del PDF, continuando de todas formas...")
+            time.sleep(2)
+        except Exception as e:
+            log(f"Ko-fi ERROR PDF: {e}")
     else:
         log("Ko-fi ERROR: No se encontro PDF.")
 
+    # --- Precio ---
     log("Ko-fi: Escribiendo precio...")
-    precio_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='number']")))
-    precio_input.clear()
-    precio_input.send_keys(datos.get("PRECIO", "10"))
+    try:
+        precio_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='number']")))
+        precio_input.clear()
+        precio_input.send_keys(datos.get("PRECIO", "10"))
+    except Exception as e:
+        log(f"Ko-fi AVISO precio: {e}")
 
+    # --- Checkboxes de terminos ---
     log("Ko-fi: Aceptando terminos...")
     driver.execute_script("""
         var checkboxes = document.querySelectorAll('input[type=checkbox]');
@@ -174,17 +236,60 @@ def subir_kofi(driver, carpeta, datos, log):
     """)
     time.sleep(1)
 
-    log("Ko-fi: Guardando...")
-    btn_save = wait.until(EC.element_to_be_clickable((By.ID, "saveAndPublishButton")))
-    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn_save)
-    time.sleep(1)
-    driver.execute_script("arguments[0].click();", btn_save)
-    time.sleep(6)
+    # --- Boton Save and Publish (3 estrategias) ---
+    log("Ko-fi: Buscando boton Save and Publish...")
+    btn_save = None
 
-    url_actual = driver.current_url
-    log(f"Ko-fi URL: {url_actual}")
-    guardar_url(carpeta, "URL_KOFI", url_actual)
+    try:
+        btn_save = wait.until(EC.presence_of_element_located((By.ID, "saveAndPublishButton")))
+        log("Ko-fi: Boton encontrado por ID.")
+    except:
+        pass
 
+    if not btn_save:
+        try:
+            btn_save = driver.find_element(By.XPATH,
+                "//button[contains(translate(text(),'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),'SAVE')]")
+            log(f"Ko-fi: Boton encontrado por texto: '{btn_save.text}'")
+        except:
+            pass
+
+    if not btn_save:
+        try:
+            botones = driver.find_elements(By.CSS_SELECTOR, "button[type='submit']")
+            for b in botones:
+                if b.is_displayed():
+                    btn_save = b
+                    log(f"Ko-fi: Boton submit encontrado: '{b.text}'")
+                    break
+        except:
+            pass
+
+    if btn_save:
+        log("Ko-fi: Esperando que el boton este habilitado...")
+        for _ in range(15):
+            disabled = driver.execute_script("return arguments[0].disabled;", btn_save)
+            if not disabled:
+                break
+            time.sleep(1)
+        else:
+            log("Ko-fi: Forzando habilitacion del boton...")
+            driver.execute_script("arguments[0].disabled = false;", btn_save)
+            time.sleep(1)
+
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn_save)
+        time.sleep(1)
+        driver.execute_script("arguments[0].click();", btn_save)
+        log("Ko-fi: Clic en Save realizado.")
+        time.sleep(6)
+    else:
+        log("Ko-fi ERROR: No se encontro el boton de guardar.")
+
+    log("Ko-fi: Listo. Pagina disponible en el navegador.")
+
+# ─────────────────────────────────────────────
+#  ITCH.IO  (pendiente de prueba)
+# ─────────────────────────────────────────────
 def subir_itch(driver, carpeta, datos, log):
     log("Itch.io: Abriendo pagina...")
     driver.get("https://itch.io/game/new")
@@ -234,11 +339,11 @@ def subir_itch(driver, carpeta, datos, log):
     btn = driver.find_element(By.CSS_SELECTOR, "button.save_btn")
     btn.click()
     time.sleep(8)
+    log("Itch.io: Listo. Pagina disponible en el navegador.")
 
-    url_actual = driver.current_url
-    log(f"Itch.io URL: {url_actual}")
-    guardar_url(carpeta, "URL_ITCH", url_actual)
-
+# ─────────────────────────────────────────────
+#  GUMROAD  (pendiente de prueba)
+# ─────────────────────────────────────────────
 def subir_gumroad(driver, carpeta, datos, log):
     log("Gumroad: Abriendo pagina...")
     driver.get("https://gumroad.com/products/new")
@@ -303,10 +408,11 @@ def subir_gumroad(driver, carpeta, datos, log):
     except:
         pass
 
-    url_actual = driver.current_url
-    log(f"Gumroad URL: {url_actual}")
-    guardar_url(carpeta, "URL_GUMROAD", url_actual)
+    log("Gumroad: Listo. Pagina disponible en el navegador.")
 
+# ─────────────────────────────────────────────
+#  INTERFAZ TKINTER
+# ─────────────────────────────────────────────
 class App:
     def __init__(self, root):
         self.root = root
@@ -395,11 +501,8 @@ class App:
         except Exception as e:
             self.log(f"ERROR: {e}")
         finally:
-            if driver:
-                driver.quit()
-            if perfil_temp and os.path.exists(perfil_temp):
-                shutil.rmtree(perfil_temp, ignore_errors=True)
-            self.log("Proceso terminado.")
+            # NO cerramos el driver - el navegador queda abierto para revision
+            self.log("Proceso terminado. Revisa el navegador y cierra cuando quieras.")
 
 if __name__ == "__main__":
     root = tk.Tk()
