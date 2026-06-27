@@ -256,28 +256,43 @@ def subir_kofi(driver, carpeta, datos, log):
     else:
         log("Ko-fi ERROR: No se encontro PDF en la carpeta.")
 
+    # --- Desmarcar checkboxes no deseados ---
+    log("Ko-fi: Ajustando checkboxes...")
+    driver.execute_script("""
+        var labels = document.querySelectorAll('label');
+        var textosDes = [
+            'Pay what you want',
+            'Limit the quantity',
+            'Schedule',
+            'Leave a message'
+        ];
+        labels.forEach(function(label) {
+            var txt = label.innerText || '';
+            textosDes.forEach(function(des) {
+                if (txt.includes(des)) {
+                    var cb = label.querySelector('input[type=checkbox]');
+                    if (!cb) {
+                        var id = label.getAttribute('for');
+                        if (id) cb = document.getElementById(id);
+                    }
+                    if (cb && cb.checked) cb.click();
+                }
+            });
+        });
+    """)
+    time.sleep(1)
+
     # --- Precio ---
     log("Ko-fi: Escribiendo precio...")
     try:
         precio_input = wait.until(EC.visibility_of_element_located(
             (By.CSS_SELECTOR, "input[type='number']")))
-        precio_input.clear()
+        precio_input.click()
+        driver.execute_script("arguments[0].value = '';", precio_input)
         precio_input.send_keys(datos.get("PRECIO", "10"))
         log("Ko-fi: Precio escrito.")
     except Exception as e:
         log(f"Ko-fi AVISO precio: {e}")
-
-    # --- Checkboxes de terminos ---
-    log("Ko-fi: Aceptando terminos...")
-    driver.execute_script("""
-        var checkboxes = document.querySelectorAll('input[type=checkbox]');
-        checkboxes.forEach(function(cb) {
-            if (cb.id !== 'darkThemeToggle' && !cb.checked) {
-                cb.click();
-            }
-        });
-    """)
-    time.sleep(1)
 
     # --- Boton Save and Publish ---
     log("Ko-fi: Buscando boton Save and Publish...")
