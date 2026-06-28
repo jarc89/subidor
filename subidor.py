@@ -568,7 +568,7 @@ def subir_gumroad(driver, carpeta, datos, log):
     log("Gumroad: Escribiendo descripcion...")
     try:
         desc = wait.until(EC.element_to_be_clickable(
-            (By.CSS_SELECTOR, "div[contenteditable='true'][data-placeholder]")))
+            (By.CSS_SELECTOR, "div.ProseMirror[contenteditable='true']")))
         desc.click()
         time.sleep(1)
         desc.send_keys(datos.get("DESCRIPCION", ""))
@@ -627,7 +627,7 @@ def subir_gumroad(driver, carpeta, datos, log):
         try:
             import pyautogui
             btn_upload = wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//button[contains(text(),'Upload files')] | //span[contains(text(),'Upload your files')]")))
+                (By.XPATH, "//button[@aria-haspopup='dialog']")))
             driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
             time.sleep(1)
             btn_upload.click()
