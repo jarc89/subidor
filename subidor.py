@@ -603,23 +603,37 @@ def subir_gumroad(driver, carpeta, datos, log):
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
-            import pyautogui
-            import subprocess
-            # Clic en boton Upload del Thumbnail
-            btn_thumb = wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//h2[contains(text(),'Thumbnail')]/following::button[contains(text(),'Upload')][1]")))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_thumb)
-            time.sleep(1)
-            driver.execute_script("arguments[0].click();", btn_thumb)
-            time.sleep(2)
-            # Usar clipboard para evitar problemas con caracteres especiales
-            subprocess.run(['clip'], input=portada.encode('utf-16'), check=True)
-            time.sleep(0.5)
-            pyautogui.hotkey('ctrl', 'v')
-            time.sleep(0.5)
-            pyautogui.press('enter')
-            log("Gumroad: Portada enviada al Thumbnail.")
-            time.sleep(5)
+            # Input [2] = Thumbnail (accept=jpeg/jpg/png/gif/webp)
+            inputs_file = driver.find_elements(By.CSS_SELECTOR, "input[type=file]")
+            log(f"Gumroad: {len(inputs_file)} inputs file en pagina.")
+            # Buscar el input de Thumbnail especificamente
+            input_thumb = None
+            for inp in inputs_file:
+                accept = inp.get_attribute("accept") or ""
+                if "jpeg" in accept and "mp3" not in accept:
+                    # Verificar que esta en la seccion Thumbnail
+                    contexto = driver.execute_script("""
+                        var el = arguments[0];
+                        for (var j = 0; j < 8; j++) {
+                            el = el.parentElement;
+                            if (!el) break;
+                            var h = el.querySelector('h2');
+                            if (h && h.innerText.includes('Thumbnail')) return 'thumbnail';
+                        }
+                        return '';
+                    """, inp)
+                    if contexto == 'thumbnail':
+                        input_thumb = inp
+                        break
+            if not input_thumb and len(inputs_file) >= 3:
+                input_thumb = inputs_file[2]  # fallback al indice 2
+            if input_thumb:
+                driver.execute_script("arguments[0].style.display='block';", input_thumb)
+                input_thumb.send_keys(portada)
+                log("Gumroad: Portada enviada al Thumbnail.")
+                time.sleep(5)
+            else:
+                log("Gumroad AVISO: No se encontro input de Thumbnail.")
         except Exception as e:
             log(f"Gumroad AVISO portada: {e}")
 
@@ -674,31 +688,24 @@ def subir_gumroad(driver, carpeta, datos, log):
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
         try:
-            import pyautogui
-            import subprocess
-            # Clic en boton Upload files de la barra del editor
-            btn_upload = wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//button[.//span[contains(text(),'Upload files')]]")))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
-            time.sleep(1)
-            driver.execute_script("arguments[0].click();", btn_upload)
-            time.sleep(2)
-            # Clic en Computer files si aparece
-            try:
-                btn_computer = wait.until(EC.element_to_be_clickable(
-                    (By.XPATH, "//button[contains(text(),'Computer files')]")))
-                driver.execute_script("arguments[0].click();", btn_computer)
-                time.sleep(2)
-            except:
-                pass
-            # Usar clipboard para la ruta (evita problemas con caracteres especiales)
-            subprocess.run(['clip'], input=pdf.encode('utf-16'), check=True)
-            time.sleep(0.5)
-            pyautogui.hotkey('ctrl', 'v')
-            time.sleep(0.5)
-            pyautogui.press('enter')
-            log("Gumroad: PDF enviado via dialogo.")
-            time.sleep(8)
+            # En tab Content hay exactamente 1 input[type=file] con accept vacio
+            inputs_file = driver.find_elements(By.CSS_SELECTOR, "input[type=file]")
+            log(f"Gumroad: {len(inputs_file)} inputs file en Content.")
+            input_pdf = None
+            for inp in inputs_file:
+                accept = inp.get_attribute("accept") or ""
+                if accept == "":
+                    input_pdf = inp
+                    break
+            if not input_pdf and inputs_file:
+                input_pdf = inputs_file[0]
+            if input_pdf:
+                driver.execute_script("arguments[0].style.display='block';", input_pdf)
+                input_pdf.send_keys(pdf)
+                log("Gumroad: PDF enviado.")
+                time.sleep(8)
+            else:
+                log("Gumroad AVISO: No se encontro input para PDF.")
         except Exception as e:
             log(f"Gumroad AVISO PDF: {e}")
     else:
