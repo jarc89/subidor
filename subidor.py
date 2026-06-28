@@ -611,6 +611,27 @@ def subir_gumroad(driver, carpeta, datos, log):
         except Exception as e:
             log(f"Gumroad AVISO portada: {e}")
 
+    log("Gumroad: Activando VAT e-publication...")
+    try:
+        driver.execute_script("""
+            var labels = document.querySelectorAll('label');
+            for (var i = 0; i < labels.length; i++) {
+                var txt = labels[i].innerText || '';
+                if (txt.includes('e-publication') || txt.includes('VAT')) {
+                    var toggle = labels[i].querySelector('input[type=checkbox], button[role=switch]');
+                    if (!toggle) toggle = labels[i].previousElementSibling;
+                    if (toggle) {
+                        var checked = toggle.checked || toggle.getAttribute('aria-checked') === 'true';
+                        if (!checked) toggle.click();
+                    }
+                }
+            }
+        """)
+        time.sleep(1)
+        log("Gumroad: VAT activado.")
+    except Exception as e:
+        log(f"Gumroad AVISO VAT: {e}")
+
     log("Gumroad: Guardando producto (Save and continue)...")
     try:
         btn_save = wait.until(EC.element_to_be_clickable(
@@ -642,11 +663,12 @@ def subir_gumroad(driver, carpeta, datos, log):
     if pdf:
         try:
             import pyautogui
+            # Buscar el boton "Upload files" en la barra de herramientas del editor
             btn_upload = wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//button[@aria-haspopup='dialog']")))
+                (By.XPATH, "//button[.//span[contains(text(),'Upload files')] or contains(text(),'Upload files')]")))
             driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
             time.sleep(1)
-            btn_upload.click()
+            driver.execute_script("arguments[0].click();", btn_upload)
             time.sleep(3)
             pyautogui.write(pdf, interval=0.05)
             time.sleep(1)
@@ -662,6 +684,8 @@ def subir_gumroad(driver, carpeta, datos, log):
     try:
         btn_pub = wait.until(EC.element_to_be_clickable(
             (By.XPATH, "//button[contains(text(),'Publish and continue')]")))
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_pub)
+        time.sleep(1)
         driver.execute_script("arguments[0].click();", btn_pub)
         time.sleep(5)
     except Exception as e:
