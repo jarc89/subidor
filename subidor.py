@@ -603,18 +603,22 @@ def subir_gumroad(driver, carpeta, datos, log):
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
-            import pyautogui
-            btn_thumb = wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//button[contains(text(),'Upload')]")))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_thumb)
-            time.sleep(1)
-            btn_thumb.click()
-            time.sleep(3)
-            pyautogui.write(portada, interval=0.05)
-            time.sleep(1)
-            pyautogui.press('enter')
-            log("Gumroad: Portada enviada.")
-            time.sleep(5)
+            # Buscar todos los input[type=file] y usar el de thumbnail
+            inputs_file = driver.find_elements(By.CSS_SELECTOR, "input[type=file]")
+            log(f"Gumroad: {len(inputs_file)} inputs file encontrados para portada.")
+            if inputs_file:
+                # Hacer visible y enviar al primero disponible
+                for inp in inputs_file:
+                    try:
+                        driver.execute_script("arguments[0].style.display='block';", inp)
+                        inp.send_keys(portada)
+                        log("Gumroad: Portada enviada via input file.")
+                        time.sleep(5)
+                        break
+                    except:
+                        continue
+            else:
+                log("Gumroad AVISO: No se encontro input file para portada.")
         except Exception as e:
             log(f"Gumroad AVISO portada: {e}")
 
