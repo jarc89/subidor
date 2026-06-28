@@ -603,22 +603,25 @@ def subir_gumroad(driver, carpeta, datos, log):
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
-            # Buscar todos los input[type=file] y usar el de thumbnail
-            inputs_file = driver.find_elements(By.CSS_SELECTOR, "input[type=file]")
-            log(f"Gumroad: {len(inputs_file)} inputs file encontrados para portada.")
-            if inputs_file:
-                # Hacer visible y enviar al primero disponible
-                for inp in inputs_file:
-                    try:
-                        driver.execute_script("arguments[0].style.display='block';", inp)
-                        inp.send_keys(portada)
-                        log("Gumroad: Portada enviada via input file.")
-                        time.sleep(5)
-                        break
-                    except:
-                        continue
+            # Buscar input file dentro de la seccion Thumbnail especificamente
+            input_thumb = driver.execute_script("""
+                var secciones = document.querySelectorAll('section, div');
+                for (var i = 0; i < secciones.length; i++) {
+                    var txt = secciones[i].innerText || '';
+                    if (txt.includes('Thumbnail') && txt.includes('600x600')) {
+                        var inp = secciones[i].querySelector('input[type=file]');
+                        if (inp) return inp;
+                    }
+                }
+                return null;
+            """)
+            if input_thumb:
+                driver.execute_script("arguments[0].style.display='block';", input_thumb)
+                input_thumb.send_keys(portada)
+                log("Gumroad: Portada enviada al Thumbnail.")
+                time.sleep(5)
             else:
-                log("Gumroad AVISO: No se encontro input file para portada.")
+                log("Gumroad AVISO: No se encontro input de Thumbnail.")
         except Exception as e:
             log(f"Gumroad AVISO portada: {e}")
 
@@ -673,8 +676,13 @@ def subir_gumroad(driver, carpeta, datos, log):
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
         try:
-            # Estrategia 1: input[type=file] oculto detras del boton Upload files
+            # Buscar input file dentro del area de Content (rich-text editor)
             input_file = driver.execute_script("""
+                var divs = document.querySelectorAll('div[data-gumroad-ignore]');
+                for (var i = 0; i < divs.length; i++) {
+                    var inp = divs[i].querySelector('input[type=file]');
+                    if (inp) return inp;
+                }
                 var btns = document.querySelectorAll('button[aria-haspopup="dialog"]');
                 for (var i = 0; i < btns.length; i++) {
                     var parent = btns[i].parentElement;
@@ -685,30 +693,16 @@ def subir_gumroad(driver, carpeta, datos, log):
                         parent = parent.parentElement;
                     }
                 }
-                return document.querySelector('input[type=file]');
+                return null;
             """)
 
             if input_file:
                 driver.execute_script("arguments[0].style.display='block';", input_file)
                 input_file.send_keys(pdf)
-                log("Gumroad: PDF enviado via input file.")
+                log("Gumroad: PDF enviado via input file de Assets.")
                 time.sleep(8)
             else:
-                # Estrategia 2: pyautogui como fallback
-                import pyautogui
-                btn_upload = wait.until(EC.element_to_be_clickable(
-                    (By.XPATH, "//button[@aria-haspopup='dialog']")))
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
-                time.sleep(1)
-                driver.execute_script("arguments[0].click();", btn_upload)
-                time.sleep(3)
-                pyautogui.hotkey('ctrl', 'a')
-                time.sleep(0.3)
-                pyautogui.write(pdf, interval=0.03)
-                time.sleep(1)
-                pyautogui.press('enter')
-                log("Gumroad: PDF enviado via pyautogui.")
-                time.sleep(8)
+                log("Gumroad AVISO: No se encontro input file para PDF.")
         except Exception as e:
             log(f"Gumroad AVISO PDF: {e}")
     else:
