@@ -430,36 +430,70 @@ def subir_itch(driver, carpeta, datos, log):
     titulo.send_keys(datos.get("TITULO", ""))
     time.sleep(2)
 
-    log("Itch.io: Seleccionando tipo libro...")
-    Select(driver.find_element(By.CSS_SELECTOR, "select[name='game[classification]']")).select_by_value("book")
-    Select(driver.find_element(By.CSS_SELECTOR, "select[name='game[kind]']")).select_by_value("downloadable")
-
     log("Itch.io: Seleccionando Paid...")
-    driver.find_element(By.CSS_SELECTOR, "input[value='paid']").click()
+    wait.until(EC.element_to_be_clickable(
+        (By.CSS_SELECTOR, "button.payment_mode_paid"))).click()
     time.sleep(2)
 
     log("Itch.io: Escribiendo precio...")
-    precio = driver.find_element(By.CSS_SELECTOR, "input[name='game[price]']")
-    precio.clear()
-    precio.send_keys(datos.get("PRECIO", "10"))
+    try:
+        precio = wait.until(EC.visibility_of_element_located(
+            (By.CSS_SELECTOR, "input[name='game[suggested_price]']")))
+        precio.clear()
+        precio.send_keys(datos.get("PRECIO", "10"))
+        log("Itch.io: Precio escrito.")
+    except Exception as e:
+        log(f"Itch.io AVISO precio: {e}")
 
     log("Itch.io: Subiendo PDF...")
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
-        driver.find_element(By.CSS_SELECTOR, "input.upload-btn[type='file']").send_keys(pdf)
-        time.sleep(8)
+        try:
+            import pyautogui
+            btn_upload = wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//button[contains(text(),'Upload files')]")))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
+            time.sleep(1)
+            btn_upload.click()
+            time.sleep(3)
+            pyautogui.write(pdf, interval=0.05)
+            time.sleep(1)
+            pyautogui.press('enter')
+            log("Itch.io: PDF enviado via dialogo del sistema.")
+            time.sleep(8)
+        except Exception as e:
+            log(f"Itch.io ERROR PDF: {e}")
+    else:
+        log("Itch.io ERROR: No se encontro PDF.")
 
     log("Itch.io: Escribiendo descripcion...")
-    desc = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.CodeMirror")))
-    desc.click()
-    time.sleep(1)
-    driver.find_element(By.CSS_SELECTOR, "div.CodeMirror textarea").send_keys(datos.get("DESCRIPCION", ""))
+    try:
+        desc_area = wait.until(EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "textarea[name='game[description]']")))
+        driver.execute_script("arguments[0].style.display='block';", desc_area)
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", desc_area)
+        time.sleep(1)
+        desc_area.click()
+        desc_area.send_keys(datos.get("DESCRIPCION", ""))
+        log("Itch.io: Descripcion escrita.")
+    except Exception as e:
+        log(f"Itch.io AVISO descripcion: {e}")
 
-    log("Itch.io: Seleccionando Public...")
-    driver.find_element(By.CSS_SELECTOR, "input[value='public']").click()
+    log("Itch.io: Seleccionando Published...")
+    try:
+        radio_pub = driver.find_element(
+            By.CSS_SELECTOR, "input[name='game[published]'][value='published']")
+        driver.execute_script("arguments[0].click();", radio_pub)
+        log("Itch.io: Visibilidad = Published.")
+    except Exception as e:
+        log(f"Itch.io AVISO published: {e}")
 
     log("Itch.io: Guardando...")
-    driver.find_element(By.CSS_SELECTOR, "button.save_btn").click()
+    btn_save = wait.until(EC.element_to_be_clickable(
+        (By.CSS_SELECTOR, "button.save_btn")))
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_save)
+    time.sleep(1)
+    driver.execute_script("arguments[0].click();", btn_save)
     time.sleep(8)
 
     url = driver.current_url
