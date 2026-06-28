@@ -669,19 +669,42 @@ def subir_gumroad(driver, carpeta, datos, log):
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
         try:
-            import pyautogui
-            # Buscar el boton "Upload files" en la barra de herramientas del editor
-            btn_upload = wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//button[.//span[contains(text(),'Upload files')] or contains(text(),'Upload files')]")))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
-            time.sleep(1)
-            driver.execute_script("arguments[0].click();", btn_upload)
-            time.sleep(3)
-            pyautogui.write(pdf, interval=0.05)
-            time.sleep(1)
-            pyautogui.press('enter')
-            log("Gumroad: PDF enviado.")
-            time.sleep(8)
+            # Estrategia 1: input[type=file] oculto detras del boton Upload files
+            input_file = driver.execute_script("""
+                var btns = document.querySelectorAll('button[aria-haspopup="dialog"]');
+                for (var i = 0; i < btns.length; i++) {
+                    var parent = btns[i].parentElement;
+                    for (var j = 0; j < 5; j++) {
+                        if (!parent) break;
+                        var inp = parent.querySelector('input[type=file]');
+                        if (inp) return inp;
+                        parent = parent.parentElement;
+                    }
+                }
+                return document.querySelector('input[type=file]');
+            """)
+
+            if input_file:
+                driver.execute_script("arguments[0].style.display='block';", input_file)
+                input_file.send_keys(pdf)
+                log("Gumroad: PDF enviado via input file.")
+                time.sleep(8)
+            else:
+                # Estrategia 2: pyautogui como fallback
+                import pyautogui
+                btn_upload = wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, "//button[@aria-haspopup='dialog']")))
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", btn_upload)
+                time.sleep(3)
+                pyautogui.hotkey('ctrl', 'a')
+                time.sleep(0.3)
+                pyautogui.write(pdf, interval=0.03)
+                time.sleep(1)
+                pyautogui.press('enter')
+                log("Gumroad: PDF enviado via pyautogui.")
+                time.sleep(8)
         except Exception as e:
             log(f"Gumroad AVISO PDF: {e}")
     else:
