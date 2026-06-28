@@ -603,25 +603,23 @@ def subir_gumroad(driver, carpeta, datos, log):
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
-            # Buscar input file dentro de la seccion Thumbnail especificamente
-            input_thumb = driver.execute_script("""
-                var secciones = document.querySelectorAll('section, div');
-                for (var i = 0; i < secciones.length; i++) {
-                    var txt = secciones[i].innerText || '';
-                    if (txt.includes('Thumbnail') && txt.includes('600x600')) {
-                        var inp = secciones[i].querySelector('input[type=file]');
-                        if (inp) return inp;
-                    }
-                }
-                return null;
-            """)
-            if input_thumb:
-                driver.execute_script("arguments[0].style.display='block';", input_thumb)
-                input_thumb.send_keys(portada)
-                log("Gumroad: Portada enviada al Thumbnail.")
-                time.sleep(5)
-            else:
-                log("Gumroad AVISO: No se encontro input de Thumbnail.")
+            import pyautogui
+            import subprocess
+            # Clic en boton Upload del Thumbnail
+            btn_thumb = wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//h2[contains(text(),'Thumbnail')]/following::button[contains(text(),'Upload')][1]")))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_thumb)
+            time.sleep(1)
+            driver.execute_script("arguments[0].click();", btn_thumb)
+            time.sleep(2)
+            # Usar clipboard para evitar problemas con caracteres especiales
+            subprocess.run(['clip'], input=portada.encode('utf-16'), check=True)
+            time.sleep(0.5)
+            pyautogui.hotkey('ctrl', 'v')
+            time.sleep(0.5)
+            pyautogui.press('enter')
+            log("Gumroad: Portada enviada al Thumbnail.")
+            time.sleep(5)
         except Exception as e:
             log(f"Gumroad AVISO portada: {e}")
 
@@ -676,39 +674,37 @@ def subir_gumroad(driver, carpeta, datos, log):
     pdf = buscar_archivo(carpeta, [".pdf"])
     if pdf:
         try:
-            # Buscar input file dentro del area de Content (rich-text editor)
-            input_file = driver.execute_script("""
-                var divs = document.querySelectorAll('div[data-gumroad-ignore]');
-                for (var i = 0; i < divs.length; i++) {
-                    var inp = divs[i].querySelector('input[type=file]');
-                    if (inp) return inp;
-                }
-                var btns = document.querySelectorAll('button[aria-haspopup="dialog"]');
-                for (var i = 0; i < btns.length; i++) {
-                    var parent = btns[i].parentElement;
-                    for (var j = 0; j < 5; j++) {
-                        if (!parent) break;
-                        var inp = parent.querySelector('input[type=file]');
-                        if (inp) return inp;
-                        parent = parent.parentElement;
-                    }
-                }
-                return null;
-            """)
-
-            if input_file:
-                driver.execute_script("arguments[0].style.display='block';", input_file)
-                input_file.send_keys(pdf)
-                log("Gumroad: PDF enviado via input file de Assets.")
-                time.sleep(8)
-            else:
-                log("Gumroad AVISO: No se encontro input file para PDF.")
+            import pyautogui
+            import subprocess
+            # Clic en boton Upload files de la barra del editor
+            btn_upload = wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//button[.//span[contains(text(),'Upload files')]]")))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
+            time.sleep(1)
+            driver.execute_script("arguments[0].click();", btn_upload)
+            time.sleep(2)
+            # Clic en Computer files si aparece
+            try:
+                btn_computer = wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, "//button[contains(text(),'Computer files')]")))
+                driver.execute_script("arguments[0].click();", btn_computer)
+                time.sleep(2)
+            except:
+                pass
+            # Usar clipboard para la ruta (evita problemas con caracteres especiales)
+            subprocess.run(['clip'], input=pdf.encode('utf-16'), check=True)
+            time.sleep(0.5)
+            pyautogui.hotkey('ctrl', 'v')
+            time.sleep(0.5)
+            pyautogui.press('enter')
+            log("Gumroad: PDF enviado via dialogo.")
+            time.sleep(8)
         except Exception as e:
             log(f"Gumroad AVISO PDF: {e}")
     else:
         log("Gumroad ERROR: No se encontro PDF.")
 
-    log("Gumroad: Publicando...")
+        log("Gumroad: Publicando...")
     try:
         btn_pub = wait.until(EC.element_to_be_clickable(
             (By.XPATH, "//button[contains(text(),'Publish and continue')]")))
