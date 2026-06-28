@@ -516,26 +516,33 @@ def subir_itch(driver, carpeta, datos, log):
 #  GUMROAD
 # ─────────────────────────────────────────────
 def subir_gumroad(driver, carpeta, datos, log):
-    log("Gumroad: Abriendo pagina...")
-    driver.get("https://gumroad.com/products/new")
-    wait = WebDriverWait(driver, 60)
-    time.sleep(4)
+    log("Gumroad: Abriendo pagina de login...")
+    driver.get("https://gumroad.com/login")
+    wait = WebDriverWait(driver, 120)
+    time.sleep(3)
 
-    # Si redirige al login, esperar hasta 60s que el usuario inicie sesion
+    # Siempre esperar que el usuario inicie sesion manualmente
     if "login" in driver.current_url:
-        log("Gumroad: Sesion no activa. Inicia sesion en el navegador...")
-        log("Gumroad: Esperando hasta 60 segundos...")
-        for _ in range(60):
+        log(">>> ACCION REQUERIDA: Inicia sesion en Gumroad en el navegador.")
+        log(">>> Tienes 2 minutos. El proceso continuara automaticamente.")
+        for _ in range(120):
             time.sleep(1)
             if "login" not in driver.current_url:
                 log("Gumroad: Sesion detectada, continuando...")
+                time.sleep(2)
                 break
         else:
             log("Gumroad ERROR: No se inicio sesion a tiempo. Saltando Gumroad.")
             return
-        # Navegar a nuevo producto despues del login
-        driver.get("https://gumroad.com/products/new")
-        time.sleep(4)
+
+    # Navegar a nuevo producto
+    driver.get("https://gumroad.com/products/new")
+    time.sleep(4)
+
+    # Verificar que sigue con sesion activa
+    if "login" in driver.current_url:
+        log("Gumroad ERROR: Sesion perdida al navegar. Saltando Gumroad.")
+        return
 
     # --- PASO 1: Nombre, tipo y precio ---
     log("Gumroad: Escribiendo nombre...")
