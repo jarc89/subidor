@@ -433,17 +433,28 @@ def subir_itch(driver, carpeta, datos, log):
     log("Itch.io: Seleccionando Paid...")
     wait.until(EC.element_to_be_clickable(
         (By.CSS_SELECTOR, "button.payment_mode_paid"))).click()
-    time.sleep(2)
+    time.sleep(3)
 
     log("Itch.io: Escribiendo precio...")
     try:
+        # El campo de precio minimo aparece despues de seleccionar Paid
         precio = wait.until(EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, "input[name='game[suggested_price]']")))
+            (By.CSS_SELECTOR, "input[name='game[min_price]']")))
+        driver.execute_script("arguments[0].style.display='block';", precio)
         precio.clear()
         precio.send_keys(datos.get("PRECIO", "10"))
-        log("Itch.io: Precio escrito.")
-    except Exception as e:
-        log(f"Itch.io AVISO precio: {e}")
+        log("Itch.io: Precio minimo escrito.")
+    except:
+        try:
+            # Fallback: suggested_price
+            precio = driver.find_element(
+                By.CSS_SELECTOR, "input[name='game[suggested_price]']")
+            driver.execute_script("arguments[0].style.display='block';", precio)
+            precio.clear()
+            precio.send_keys(datos.get("PRECIO", "10"))
+            log("Itch.io: Precio sugerido escrito.")
+        except Exception as e:
+            log(f"Itch.io AVISO precio: {e}")
 
     log("Itch.io: Subiendo PDF...")
     pdf = buscar_archivo(carpeta, [".pdf"])
@@ -510,60 +521,145 @@ def subir_gumroad(driver, carpeta, datos, log):
     wait = WebDriverWait(driver, 30)
     time.sleep(4)
 
+    # --- PASO 1: Nombre, tipo y precio ---
     log("Gumroad: Escribiendo nombre...")
-    nombre = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='name']")))
+    nombre = wait.until(EC.visibility_of_element_located(
+        (By.CSS_SELECTOR, "input[type='text']")))
     nombre.clear()
     nombre.send_keys(datos.get("TITULO", ""))
 
     log("Gumroad: Seleccionando E-book...")
     try:
-        driver.find_element(By.XPATH, "//div[contains(text(),'E-book')]").click()
-    except:
-        pass
+        ebook_btn = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//button[.//h4[contains(text(),'E-book')] or contains(text(),'E-book')]")))
+        driver.execute_script("arguments[0].click();", ebook_btn)
+        log("Gumroad: E-book seleccionado.")
+        time.sleep(1)
+    except Exception as e:
+        log(f"Gumroad AVISO tipo: {e}")
 
     log("Gumroad: Escribiendo precio...")
-    precio = driver.find_element(By.CSS_SELECTOR, "input[name='price']")
-    precio.clear()
-    precio.send_keys(datos.get("PRECIO", "10"))
+    try:
+        # El precio es el segundo input de texto visible
+        inputs_text = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
+        precio_input = None
+        for inp in inputs_text:
+            if inp.is_displayed() and inp != nombre:
+                precio_input = inp
+                break
+        if precio_input:
+            precio_input.clear()
+            precio_input.send_keys(datos.get("PRECIO", "10"))
+            log("Gumroad: Precio escrito.")
+    except Exception as e:
+        log(f"Gumroad AVISO precio: {e}")
 
-    log("Gumroad: Siguiente paso...")
-    driver.find_element(By.XPATH, "//button[contains(text(),'Next')]").click()
+    log("Gumroad: Clic en Next: Customize...")
+    btn_next = wait.until(EC.element_to_be_clickable(
+        (By.XPATH, "//button[contains(text(),'Next')]")))
+    driver.execute_script("arguments[0].click();", btn_next)
     time.sleep(5)
+
+    # --- PASO 2: Descripcion, portada, guardar ---
+    log("Gumroad: Esperando pagina de edicion...")
+    wait.until(EC.url_contains("/edit"))
+    time.sleep(3)
 
     log("Gumroad: Escribiendo descripcion...")
-    desc = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[contenteditable='true']")))
-    desc.click()
-    desc.send_keys(datos.get("DESCRIPCION", ""))
+    try:
+        desc = wait.until(EC.element_to_be_clickable(
+            (By.CSS_SELECTOR, "div[contenteditable='true'][data-placeholder]")))
+        desc.click()
+        time.sleep(1)
+        desc.send_keys(datos.get("DESCRIPCION", ""))
+        log("Gumroad: Descripcion escrita.")
+    except Exception as e:
+        log(f"Gumroad AVISO descripcion: {e}")
 
+    log("Gumroad: Subiendo portada (Thumbnail)...")
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
-        log("Gumroad: Subiendo portada...")
-        inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
-        if inputs:
-            inputs[0].send_keys(portada)
-        time.sleep(4)
+        try:
+            import pyautogui
+            btn_thumb = wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//button[contains(text(),'Upload')]")))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_thumb)
+            time.sleep(1)
+            btn_thumb.click()
+            time.sleep(3)
+            pyautogui.write(portada, interval=0.05)
+            time.sleep(1)
+            pyautogui.press('enter')
+            log("Gumroad: Portada enviada.")
+            time.sleep(5)
+        except Exception as e:
+            log(f"Gumroad AVISO portada: {e}")
 
-    log("Gumroad: Guardando producto...")
-    driver.find_element(By.XPATH, "//button[contains(text(),'Save and continue')]").click()
-    time.sleep(5)
+    log("Gumroad: Guardando producto (Save and continue)...")
+    try:
+        btn_save = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//button[contains(text(),'Save and continue')]")))
+        driver.execute_script("arguments[0].click();", btn_save)
+        time.sleep(5)
+    except Exception as e:
+        log(f"Gumroad AVISO save: {e}")
+
+    # --- PASO 3: Subir PDF en tab Content ---
+    log("Gumroad: Abriendo tab Content...")
+    try:
+        wait.until(EC.url_contains("/edit"))
+        # Navegar al tab Content
+        tab_content = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//a[contains(text(),'Content')] | //button[contains(text(),'Content')]")))
+        driver.execute_script("arguments[0].click();", tab_content)
+        time.sleep(3)
+    except Exception as e:
+        log(f"Gumroad AVISO tab content: {e}")
+        # Intentar navegar directo a la URL de content
+        url_edit = driver.current_url
+        if "/edit" in url_edit and "/content" not in url_edit:
+            driver.get(url_edit.replace("/edit", "/edit/content"))
+            time.sleep(4)
 
     log("Gumroad: Subiendo PDF...")
-    try:
-        pdf = buscar_archivo(carpeta, [".pdf"])
-        if pdf:
-            driver.find_element(By.CSS_SELECTOR, "input[type='file']").send_keys(pdf)
+    pdf = buscar_archivo(carpeta, [".pdf"])
+    if pdf:
+        try:
+            import pyautogui
+            btn_upload = wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//button[contains(text(),'Upload files')] | //span[contains(text(),'Upload your files')]")))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_upload)
+            time.sleep(1)
+            btn_upload.click()
+            time.sleep(3)
+            pyautogui.write(pdf, interval=0.05)
+            time.sleep(1)
+            pyautogui.press('enter')
+            log("Gumroad: PDF enviado.")
             time.sleep(8)
-    except Exception as e:
-        log(f"Gumroad AVISO PDF: {e}")
+        except Exception as e:
+            log(f"Gumroad AVISO PDF: {e}")
+    else:
+        log("Gumroad ERROR: No se encontro PDF.")
 
     log("Gumroad: Publicando...")
     try:
-        driver.find_element(By.XPATH, "//button[contains(text(),'Publish and continue')]").click()
+        btn_pub = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//button[contains(text(),'Publish and continue')]")))
+        driver.execute_script("arguments[0].click();", btn_pub)
         time.sleep(5)
+    except Exception as e:
+        log(f"Gumroad AVISO publicar: {e}")
+
+    # Capturar URL del producto
+    url = driver.current_url
+    # Extraer la URL publica del producto si es posible
+    try:
+        url_publica = driver.find_element(
+            By.XPATH, "//a[contains(@href,'gumroad.com/l/')]")
+        url = url_publica.get_attribute("href")
     except:
         pass
-
-    url = driver.current_url
     log(f"Gumroad URL: {url}")
     guardar_url(carpeta, "URL_GUMROAD", url)
     log("Gumroad: Listo.")
