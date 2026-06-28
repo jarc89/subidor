@@ -397,19 +397,19 @@ def subir_kofi(driver, carpeta, datos, log):
         log("Ko-fi ERROR: No se encontro boton de publicar.")
         return
 
-    # Capturar URL — primero intentar leerla del modal, luego de la URL actual
+    # Capturar URL — leer del campo id=directLinkPost del modal
     url_kofi = ""
     try:
         campo_url = WebDriverWait(driver, 8).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "input[value*='ko-fi.com']")))
+            EC.presence_of_element_located((By.ID, "directLinkPost")))
         url_kofi = campo_url.get_attribute("value")
-        log(f"Ko-fi URL (modal): {url_kofi}")
+        log(f"Ko-fi URL: {url_kofi}")
     except:
         pass
 
     if not url_kofi:
         url_kofi = driver.current_url
-        log(f"Ko-fi URL (current): {url_kofi}")
+        log(f"Ko-fi URL (pagina): {url_kofi}")
 
     guardar_url(carpeta, "URL_KOFI", url_kofi)
     log("Ko-fi: Listo.")
