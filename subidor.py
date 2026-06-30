@@ -640,18 +640,20 @@ def subir_gumroad(driver, carpeta, datos, log):
                 except:
                     log("Gumroad: No aparecio menu Computer files, asumiendo dialogo directo.")
 
-                # Limpiar el campo de nombre de archivo antes de pegar (evita rutas viejas)
-                pyautogui.hotkey('ctrl', 'a')
-                time.sleep(0.3)
-                pyautogui.press('delete')
-                time.sleep(0.3)
-                # Usar clipboard para pegar la ruta en el dialogo de Windows
-                subprocess.run(['clip'], input=portada.encode('utf-16'), check=True)
+                # Usar Ctrl+L para ir a la barra de direcciones del dialogo,
+                # ahi pegar SIEMPRE reemplaza el contenido en vez de concatenar
+                pyautogui.hotkey('ctrl', 'l')
                 time.sleep(0.5)
+                subprocess.run(['clip'], input=portada.encode('utf-16'), check=True)
+                time.sleep(0.3)
                 pyautogui.hotkey('ctrl', 'v')
                 time.sleep(0.5)
                 pyautogui.press('enter')
-                log("Gumroad: Portada enviada al Cover via dialogo.")
+                time.sleep(1)
+                # El Enter en la barra de direcciones navega/selecciona el archivo,
+                # un segundo Enter confirma la apertura
+                pyautogui.press('enter')
+                log("Gumroad: Portada enviada al Cover via barra de direcciones.")
                 time.sleep(5)
             else:
                 log("Gumroad AVISO: No se encontro boton Upload de Cover.")
