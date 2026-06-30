@@ -603,16 +603,10 @@ def subir_gumroad(driver, carpeta, datos, log):
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
-            # Quitar foco del editor haciendo clic en el campo Name (no se pierde nada)
-            try:
-                campo_name = driver.find_element(By.CSS_SELECTOR, "input[type='text']")
-                campo_name.click()
-                time.sleep(1)
-            except:
-                pass
-
-            # Buscar el input de Cover navegando directamente desde el texto "Cover"
-            input_cover = driver.execute_script("""
+            import pyautogui
+            import subprocess
+            # Clic en el boton principal "Upload images or videos" del Cover
+            btn_cover = driver.execute_script("""
                 var heading = null;
                 var headings = document.querySelectorAll('h2, h3');
                 for (var i = 0; i < headings.length; i++) {
@@ -624,21 +618,38 @@ def subir_gumroad(driver, carpeta, datos, log):
                 if (!heading) return null;
                 var section = heading.closest('section') || heading.parentElement.parentElement;
                 if (!section) return null;
-                var inputs = section.querySelectorAll('input[type=file]');
-                for (var j = 0; j < inputs.length; j++) {
-                    var accept = inputs[j].accept || '';
-                    if (accept.includes('jpeg')) return inputs[j];
+                var btns = section.querySelectorAll('button, label');
+                for (var j = 0; j < btns.length; j++) {
+                    if (btns[j].innerText.includes('Upload')) return btns[j];
                 }
                 return null;
             """)
 
-            if input_cover:
-                driver.execute_script("arguments[0].style.display='block';", input_cover)
-                input_cover.send_keys(portada)
-                log("Gumroad: Portada enviada al Cover (via heading).")
-                time.sleep(4)
+            if btn_cover:
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn_cover)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", btn_cover)
+                time.sleep(2)
+
+                # Aparecen 2 opciones: Computer files / External link. Clic en Computer files
+                try:
+                    btn_computer = WebDriverWait(driver, 5).until(
+                        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Computer files')] | //label[contains(text(),'Computer files')]")))
+                    driver.execute_script("arguments[0].click();", btn_computer)
+                    time.sleep(2)
+                except:
+                    log("Gumroad: No aparecio menu Computer files, asumiendo dialogo directo.")
+
+                # Usar clipboard para pegar la ruta en el dialogo de Windows
+                subprocess.run(['clip'], input=portada.encode('utf-16'), check=True)
+                time.sleep(0.5)
+                pyautogui.hotkey('ctrl', 'v')
+                time.sleep(0.5)
+                pyautogui.press('enter')
+                log("Gumroad: Portada enviada al Cover via dialogo.")
+                time.sleep(5)
             else:
-                log("Gumroad AVISO: No se encontro input de Cover via heading.")
+                log("Gumroad AVISO: No se encontro boton Upload de Cover.")
         except Exception as e:
             log(f"Gumroad AVISO portada: {e}")
 
