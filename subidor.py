@@ -599,41 +599,42 @@ def subir_gumroad(driver, carpeta, datos, log):
     except Exception as e:
         log(f"Gumroad AVISO descripcion: {e}")
 
-    log("Gumroad: Subiendo portada (Thumbnail)...")
+    log("Gumroad: Subiendo portada (Cover)...")
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
-            # Input [2] = Thumbnail (accept=jpeg/jpg/png/gif/webp)
             inputs_file = driver.find_elements(By.CSS_SELECTOR, "input[type=file]")
             log(f"Gumroad: {len(inputs_file)} inputs file en pagina.")
-            # Buscar el input de Thumbnail especificamente
-            input_thumb = None
+
+            # Input [0] = Cover (primera imagen, accept jpeg sin mp3 cerca)
+            input_cover = None
             for inp in inputs_file:
                 accept = inp.get_attribute("accept") or ""
                 if "jpeg" in accept and "mp3" not in accept:
-                    # Verificar que esta en la seccion Thumbnail
                     contexto = driver.execute_script("""
                         var el = arguments[0];
                         for (var j = 0; j < 8; j++) {
                             el = el.parentElement;
                             if (!el) break;
                             var h = el.querySelector('h2');
-                            if (h && h.innerText.includes('Thumbnail')) return 'thumbnail';
+                            if (h) return h.innerText;
                         }
                         return '';
                     """, inp)
-                    if contexto == 'thumbnail':
-                        input_thumb = inp
+                    if "Cover" in contexto:
+                        input_cover = inp
                         break
-            if not input_thumb and len(inputs_file) >= 3:
-                input_thumb = inputs_file[2]  # fallback al indice 2
-            if input_thumb:
-                driver.execute_script("arguments[0].style.display='block';", input_thumb)
-                input_thumb.send_keys(portada)
-                log("Gumroad: Portada enviada al Thumbnail.")
-                time.sleep(5)
+
+            if not input_cover and inputs_file:
+                input_cover = inputs_file[0]  # fallback al primero
+
+            if input_cover:
+                driver.execute_script("arguments[0].style.display='block';", input_cover)
+                input_cover.send_keys(portada)
+                log("Gumroad: Portada enviada al Cover.")
+                time.sleep(4)
             else:
-                log("Gumroad AVISO: No se encontro input de Thumbnail.")
+                log("Gumroad AVISO: No se encontro input de Cover.")
         except Exception as e:
             log(f"Gumroad AVISO portada: {e}")
 
