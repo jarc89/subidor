@@ -603,43 +603,40 @@ def subir_gumroad(driver, carpeta, datos, log):
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
-            # Quitar el foco del editor de descripcion antes de tocar el input de portada
-            driver.execute_script("document.activeElement.blur();")
-            driver.find_element(By.TAG_NAME, "body").click()
-            time.sleep(1)
+            # Recargar pagina actual para resetear cualquier foco del editor
+            url_actual = driver.current_url
+            driver.get(url_actual)
+            time.sleep(3)
 
-            inputs_file = driver.find_elements(By.CSS_SELECTOR, "input[type=file]")
-            log(f"Gumroad: {len(inputs_file)} inputs file en pagina.")
-
-            # Input [0] = Cover (primera imagen, accept jpeg sin mp3 cerca)
-            input_cover = None
-            for inp in inputs_file:
-                accept = inp.get_attribute("accept") or ""
-                if "jpeg" in accept and "mp3" not in accept:
-                    contexto = driver.execute_script("""
-                        var el = arguments[0];
-                        for (var j = 0; j < 8; j++) {
-                            el = el.parentElement;
-                            if (!el) break;
-                            var h = el.querySelector('h2');
-                            if (h) return h.innerText;
-                        }
-                        return '';
-                    """, inp)
-                    if "Cover" in contexto:
-                        input_cover = inp
-                        break
-
-            if not input_cover and inputs_file:
-                input_cover = inputs_file[0]  # fallback al primero
+            # Buscar el input de Cover navegando directamente desde el texto "Cover"
+            input_cover = driver.execute_script("""
+                var heading = null;
+                var headings = document.querySelectorAll('h2, h3');
+                for (var i = 0; i < headings.length; i++) {
+                    if (headings[i].innerText.trim() === 'Cover') {
+                        heading = headings[i];
+                        break;
+                    }
+                }
+                if (!heading) return null;
+                // Buscar en el siguiente sibling/seccion
+                var section = heading.closest('section') || heading.parentElement.parentElement;
+                if (!section) return null;
+                var inputs = section.querySelectorAll('input[type=file]');
+                for (var j = 0; j < inputs.length; j++) {
+                    var accept = inputs[j].accept || '';
+                    if (accept.includes('jpeg')) return inputs[j];
+                }
+                return null;
+            """)
 
             if input_cover:
                 driver.execute_script("arguments[0].style.display='block';", input_cover)
                 input_cover.send_keys(portada)
-                log("Gumroad: Portada enviada al Cover.")
+                log("Gumroad: Portada enviada al Cover (via heading).")
                 time.sleep(4)
             else:
-                log("Gumroad AVISO: No se encontro input de Cover.")
+                log("Gumroad AVISO: No se encontro input de Cover via heading.")
         except Exception as e:
             log(f"Gumroad AVISO portada: {e}")
 
