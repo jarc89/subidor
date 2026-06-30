@@ -640,6 +640,11 @@ def subir_gumroad(driver, carpeta, datos, log):
                 except:
                     log("Gumroad: No aparecio menu Computer files, asumiendo dialogo directo.")
 
+                # Limpiar el campo de nombre de archivo antes de pegar (evita rutas viejas)
+                pyautogui.hotkey('ctrl', 'a')
+                time.sleep(0.3)
+                pyautogui.press('delete')
+                time.sleep(0.3)
                 # Usar clipboard para pegar la ruta en el dialogo de Windows
                 subprocess.run(['clip'], input=portada.encode('utf-16'), check=True)
                 time.sleep(0.5)
