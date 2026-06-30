@@ -603,10 +603,13 @@ def subir_gumroad(driver, carpeta, datos, log):
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
-            # Recargar pagina actual para resetear cualquier foco del editor
-            url_actual = driver.current_url
-            driver.get(url_actual)
-            time.sleep(3)
+            # Quitar foco del editor haciendo clic en el campo Name (no se pierde nada)
+            try:
+                campo_name = driver.find_element(By.CSS_SELECTOR, "input[type='text']")
+                campo_name.click()
+                time.sleep(1)
+            except:
+                pass
 
             # Buscar el input de Cover navegando directamente desde el texto "Cover"
             input_cover = driver.execute_script("""
@@ -619,7 +622,6 @@ def subir_gumroad(driver, carpeta, datos, log):
                     }
                 }
                 if (!heading) return null;
-                // Buscar en el siguiente sibling/seccion
                 var section = heading.closest('section') || heading.parentElement.parentElement;
                 if (!section) return null;
                 var inputs = section.querySelectorAll('input[type=file]');
