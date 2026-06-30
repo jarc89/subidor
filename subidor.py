@@ -603,6 +603,11 @@ def subir_gumroad(driver, carpeta, datos, log):
     portada = buscar_archivo(carpeta, [".jpg", ".jpeg", ".png"])
     if portada:
         try:
+            # Quitar el foco del editor de descripcion antes de tocar el input de portada
+            driver.execute_script("document.activeElement.blur();")
+            driver.find_element(By.TAG_NAME, "body").click()
+            time.sleep(1)
+
             inputs_file = driver.find_elements(By.CSS_SELECTOR, "input[type=file]")
             log(f"Gumroad: {len(inputs_file)} inputs file en pagina.")
 
